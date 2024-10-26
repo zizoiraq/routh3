@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Routh-Hurwitz Stability Calculator with Table</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            margin: 50px auto;
+            padding: 20px;
+            width: 600px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: blue;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: darkblue;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        .message {
+            color: red;
+            margin-top: 10px;
+        }
+        .red-text {
+            color: red;
+        }
+        .row-label {
+            font-weight: bold;
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Northern Technical University</h1>
+        <h2>Chemical and Petroleum Industries Technologies Engineering</h2>
+        <p>Designed by: Azam Isam</p>
+        <hr>
+
+        <h2>Routh-Hurwitz Stability Calculator</h2>
+
+        <label for="numerator">Enter Numerator Coefficients (space-separated):</label>
+        <input type="text" id="numerator" placeholder="e.g. 1 2 3">
+
+        <label for="denominator">Enter Denominator Coefficients (space-separated):</label>
+        <input type="text" id="denominator" placeholder="e.g. 1 0.5 1">
+
+        <button onclick="calculateRouthHurwitz()">Calculate</button>
+
+        <div id="result"></div>
+        <div id="tableContainer"></div>
+        <div id="specialCaseMessage" class="message"></div>
+    </div>
+
+    <script>
+        function routhHurwitz(coefficients) {
+            let n = coefficients.length;
+            let routhArray = Array(n).fill(0).map(() => Array(Math.ceil(n / 2)).fill(0));
+            let specialCaseRows = [];  // Track rows where special case occurs
+            let zeroReplacementRows = []; // Track rows where 0 was replaced with 1e-6
+
+            // Fill the first two rows of the Routh array
+            for (let i = 0; i < n; i += 2) {
+                routhArray[0][Math.floor(i / 2)] = coefficients[i];
+            }
+            for (let i = 1; i < n; i += 2) {
+                routhArray[1][Math.floor(i / 2)] = coefficients[i];
+            }
+
+            // Calculate the rest of the Routh array
+            for (let i = 2; i < routhArray.length; i++) {
+                // Check if the row contains all zeros
+                if (routhArray[i - 1].every(value => value === 0)) {
+                    specialCaseRows.push(i - 1);  // Record the row number where the special case occurs
+
+                    // Form the auxiliary polynomial from the previous row
+                    let auxPoly = [];
+                    let power = n - i + 1;
+                    for (let j = 0; j < routhArray[i - 2].length; j++) {
+                        auxPoly.push(routhArray[i - 2][j] * power);
+                        power -= 2;
+                    }
+
+                    // Replace the zero row with the coefficients from the differentiated polynomial
+                    for (let j = 0; j < auxPoly.length; j++) {
+                        routhArray[i - 1][j] = auxPoly[j];
+                    }
+                }
+
+                // Recalculate each element in the current row using updated rows
+                for (let j = 0; j < Math.ceil(n / 2) - 1; j++) {
+                    if (routhArray[i - 1][0] === 0) {
+                        routhArray[i - 1][0] = 1e-6;  // Small perturbation to avoid division by zero
+                        zeroReplacementRows.push(i - 1);  // Record the row where 0 was replaced with 1e-6
+                    }
+                    routhArray[i][j] = (routhArray[i - 1][0] * routhArray[i - 2][j + 1] - routhArray[i - 2][0] * routhArray[i - 1][j + 1]) / routhArray[i - 1][0];
+                }
+            }
+
+            return { routhArray, specialCaseRows, zeroReplacementRows };
+        }
+
+        function displayRouthTable(routhArray, specialCaseRows, zeroReplacementRows) {
+            let tableContainer = document.getElementById("tableContainer");
+            tableContainer.innerHTML = '';  // Clear previous table if any
+
+            let table = document.createElement("table");
+            let numRows = routhArray.length;
+            let numCols = routhArray[0].length;
+
+            // Generate row labels dynamically based on the polynomial degree
+            let degree = numRows - 1;
+            for (let i = 0; i < numRows; i++) {
+                let row = document.createElement("tr");
+
+                // Add the left-side label for each row (s^degree)
+                let labelCell = document.createElement("td");
+                labelCell.textContent = `s^${degree - i}`;
+                labelCell.classList.add("row-label");
+                row.appendChild(labelCell);
+
+                // Populate row data
+                for (let j = 0; j < numCols; j++) {
+                    let cell = document.createElement("td");
+                    // Check if this row was a special case to display in red
+                    if (specialCaseRows.includes(i)) {
+                        cell.classList.add("red-text");
+                    }
+                    // Highlight and display the 1e-6 replacement correctly
+                    if (j === 0 && zeroReplacementRows.includes(i)) {
+                        cell.classList.add("red-text");
+                        cell.textContent = "1e-6"; // Display 1e-6 exactly
+                    } else {
+                        cell.textContent = isNaN(routhArray[i][j]) ? "0" : routhArray[i][j].toFixed(2);
+                    }
+                    row.appendChild(cell);
+                }
+
+                table.appendChild(row);
+            }
+
+            tableContainer.appendChild(table);
+        }
+
+        function checkStability(routhArray) {
+            let stabilityDiv = document.getElementById("result");
+            let signChanges = 0;
+            let previousSign = Math.sign(routhArray[0][0]);
+
+            for (let i = 1; i < routhArray.length; i++) {
+                let currentSign = Math.sign(routhArray[i][0]);
+                if (currentSign !== 0 && currentSign !== previousSign) {
+                    signChanges++;
+                    previousSign = currentSign;
+                }
+            }
+
+            stabilityDiv.textContent = signChanges === 0 ? "The system is stable." : `The system is unstable with ${signChanges} sign changes.`;
+        }
+
+        function calculateRouthHurwitz() {
+            let numerator = document.getElementById("numerator").value.trim().split(" ").map(Number);
+            let denominator = document.getElementById("denominator").value.trim().split(" ").map(Number);
+
+            if (!denominator.every(num => !isNaN(num)) || denominator.length === 0) {
+                document.getElementById("result").textContent = "Please enter valid coefficients.";
+                return;
+            }
+
+            document.getElementById("result").textContent = "";
+            document.getElementById("specialCaseMessage").textContent = "";
+
+            // Get Routh Array and any special cases
+            let { routhArray, specialCaseRows, zeroReplacementRows } = routhHurwitz(denominator);
+
+            // Display Routh table with special cases highlighted
+            displayRouthTable(routhArray, specialCaseRows, zeroReplacementRows);
+
+            // Check Stability
+            checkStability(routhArray);
+
+            // Display special case message if applicable
+            if (specialCaseRows.length > 0) {
+                document.getElementById("specialCaseMessage").textContent += 
+                    `Special case handled in the red rows. An auxiliary polynomial was created to replace zero rows(all elements are zero in this row ). `;
+            }
+            if (zeroReplacementRows.length > 0) {
+                document.getElementById("specialCaseMessage").textContent += 
+                    `Special case : Zero in the first column was replaced with a small number (1e-6) .`;
+            }
+        }
+    </script>
+
+</body>
+</html>
